@@ -11,7 +11,7 @@ spec:
     path: chart/sample-nodejs
     helm:
       valueFiles:
-        - ../../config/demo/values.yaml 
+        - ../../config/demo/values.yaml
   destination:
     server: https://kubernetes.default.svc
     namespace: sample-nodejs-demo

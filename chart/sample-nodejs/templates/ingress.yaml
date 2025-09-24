@@ -1,0 +1,37 @@
+{{- $root := . -}}
+{{- $ingress := $root.Values.ingress | default (dict) -}}
+{{- if $ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "simple-nodejs.fullname" $root }}
+  labels:
+    {{- include "simple-nodejs.labels" $root | nindent 4 }}
+  {{- with $ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- if $ingress.className }}
+  ingressClassName: {{ $ingress.className }}
+  {{- end }}
+  rules:
+    {{- range $host := ($ingress.hosts | default (list)) }}
+    - host: {{ $host.host }}
+      http:
+        paths:
+          {{- range $path := ($host.paths | default (list)) }}
+          - path: {{ $path.path }}
+            pathType: {{ $path.pathType | default "Prefix" }}
+            backend:
+              service:
+                name: {{ include "simple-nodejs.fullname" $root }}
+                port:
+                  number: {{ $path.port | default 8080 }}
+          {{- end }}
+    {{- end }}
+  {{- with $ingress.tls }}
+  tls:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+{{- end }}

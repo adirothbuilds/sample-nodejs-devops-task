@@ -1,0 +1,17 @@
+{{- $root := . -}}
+{{- $service := $root.Values.service | default (dict) -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "simple-nodejs.fullname" $root }}
+  labels:
+    {{- include "simple-nodejs.labels" $root | nindent 4 }}
+spec:
+  type: {{ $service.type | default "ClusterIP" }}
+  ports:
+    - port: {{ $service.port | default 8080 }}
+      targetPort: {{ $service.targetPort | default $service.port | default 8080 }}
+      protocol: TCP
+      name: http
+  selector:
+    {{- include "simple-nodejs.selectorLabels" $root | nindent 4 }}

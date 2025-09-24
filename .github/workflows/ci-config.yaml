@@ -1,0 +1,22 @@
+name: Validate ArgoCD Config
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'config/**'
+  pull_request:
+    paths:
+      - 'config/**'
+jobs:
+  validate-argocd-config:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Install yamllint
+        run: pip install yamllint
+      - name: Validate YAML syntax
+        run: |
+          find config -type f \( -name '*.yaml' -o -name '*.yml' \) -print0 | \
+            xargs -0 yamllint -d "{extends: relaxed, rules: {line-length: disable}}"

@@ -4,6 +4,16 @@ const promClient = require('prom-client');
 const app = express();
 const port = process.env.PORT || 8080;
 
+// added consts for demostation using configmap
+const aboutMessage = process.env.ABOUT_MESSAGE ||
+    "This is a sample Node.js application for Kubernetes deployment testing.";
+
+// added const for demostation using secret
+const secretToken = process.env.CLASSIFIED_TOKEN || "";
+const secretMessage = secretToken ? 
+    "Classified token is set. Welcome!" : 
+    "Access denied. No classified token found.";
+
 // Create a Registry to register the metrics
 const register = new promClient.Registry();
 
@@ -16,16 +26,15 @@ const helloWorldCounter = new promClient.Counter({
 });
 register.registerMetric(helloWorldCounter);
 
-
-
 // Define routes
 app.get('/my-app', (req, res) => {
     helloWorldCounter.inc();
     res.send('Hello, World!');
 });
 
+// Using configmap for about message
 app.get('/about', (req, res) => {
-    res.send('This is a sample Node.js application for Kubernetes deployment testing.');
+    res.send(aboutMessage);
 });
 
 app.get('/ready', (req, res) => {
@@ -36,8 +45,13 @@ app.get('/live', (req, res) => {
     res.status(200).send('Alive');
 });
 
+// Using secret for classified message and access control
 app.get('/classified', (req, res) => {
-    res.status(200).send('You should not be here!!!');
+    if (!secretToken) {
+        res.status(403).send(secretMessage);
+    } else {
+        res.status(200).send(secretMessage);
+    }
 });
 
 app.get('/metrics', async (req, res) => {

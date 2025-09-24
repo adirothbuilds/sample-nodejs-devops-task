@@ -1,0 +1,24 @@
+# Dependencies
+node_modules/
+
+# Logs
+npm-debug.log*
+*.log
+
+# Git / GitHub
+.git/
+.gitignore
+.github/
+
+# Docker
+Dockerfile
+.dockerignore
+
+# Docs
+*.md
+*.txt
+
+# OS / Editor
+.DS_Store
+*.swp
+*.swo

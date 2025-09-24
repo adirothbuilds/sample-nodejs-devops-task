@@ -1,1 +1,21 @@
+# Nodejs
 node_modules/
+npm-debug.log*
+*.log
+
+# Helm
+.DS_Store
+*.tgz
+tmp/
+.helmignore
+
+# Kubernetes render output
+render.yaml
+
+# IDEs
+.vscode/
+*.swp
+*.swo
+
+# OS
+Thumbs.db

@@ -1,0 +1,51 @@
+replicaCount: 1
+
+image:
+  repository: adirothbuilds/sample-nodejs
+  tag: "1.0.0"
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 8080
+
+config:
+  nodeEnv: "production"
+  appPort: "8080"
+  aboutMessage: "Welcome to the Simple Node.js App (demo)"
+
+secret:
+  classifiedToken:
+    enabled: true
+    secretName: "classified-token-secret"
+    key: "token"
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 250m
+    memory: 256Mi
+
+readinessProbe:
+  path: /ready
+  initialDelaySeconds: 5
+  periodSeconds: 10
+
+livenessProbe:
+  path: /live
+  initialDelaySeconds: 30
+  periodSeconds: 10
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+  hosts:
+    - host: demo.local
+      paths:
+        - path: /
+          pathType: Prefix
+          port: 8080

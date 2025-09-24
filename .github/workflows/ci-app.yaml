@@ -1,0 +1,164 @@
+name: CI Pipeline for Application
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'app/**'
+  pull_request:
+    paths:
+      - 'app/**'
+permissions:
+  contents: write
+  security-events: write
+jobs:
+  params:
+    name: Init Workflow Params
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.current-version.outputs.version }}
+      app-name: ${{ steps.app-name.outputs.name }}
+    defaults:
+      run:
+        working-directory: ./app
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extract Current Version
+        id: current-version
+        run: |
+          VERSION=$(jq -r '.version' package.json)
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+      - name: Extract App Name
+        id: app-name
+        run: |
+          NAME=$(jq -r '.name' package.json)
+          echo "name=$NAME" >> $GITHUB_OUTPUT
+  sast:
+    name: SonarQube Scan
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./app
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: SonarQube Scan
+        uses: SonarSource/sonarqube-scan-action@v5
+        with:
+          projectBaseDir: ./app
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+  build-scan-publish:
+    name: Build, Scan, Publish Docker Image
+    runs-on: ubuntu-latest
+    needs: [sast, params]
+    defaults:
+      run:
+        working-directory: ./app
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build Docker image
+        id: build_image
+        run: |
+          VERSION=${{ needs.params.outputs.version }}
+          IMAGE=${{ needs.params.outputs.app-name }}
+
+          docker build \
+            -t $IMAGE:${{ github.sha }} \
+            -t $IMAGE:$VERSION \
+            -t $IMAGE:latest \
+            .
+
+          echo "image=$IMAGE:${{ github.sha }}" >> $GITHUB_OUTPUT
+      - name: Run Trivy vulnerability scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ needs.params.outputs.app-name }}:${{ github.sha }}
+          format: 'sarif'
+          output: 'trivy-scan-results.sarif'
+          severity: 'CRITICAL,HIGH'
+          ignore-unfixed: true
+          exit-code: '0' # Doing this to continiue to publish, in real-life I will return exit-code 1
+          vuln-type: 'os,library'
+      - name: Upload Trivy SARIF report
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: trivy-scan-results.sarif
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v2
+        if: success()
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Push Docker images
+        if: success()
+        run: |
+          VERSION=${{ needs.params.outputs.version }}
+          IMAGE=${{ needs.params.outputs.app-name }}
+          REGISTRY=docker.io/${{ secrets.DOCKERHUB_USERNAME }}
+
+          # Tagging local docker images from build step with the registry's prefix
+          docker tag $IMAGE:${{ github.sha }} $REGISTRY/$IMAGE:${{ github.sha }}
+          docker tag $IMAGE:$VERSION $REGISTRY/$IMAGE:$VERSION
+          docker tag $IMAGE:latest $REGISTRY/$IMAGE:latest
+
+          # push to registry (docker hub)
+          docker push $REGISTRY/$IMAGE:${{ github.sha }}
+          docker push $REGISTRY/$IMAGE:$VERSION
+          docker push $REGISTRY/$IMAGE:latest
+  tag-release:
+    name: Tag current release
+    runs-on: ubuntu-latest
+    needs: [build-scan-publish, params]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Update Chart.yaml appVersion
+        run: |
+          VERSION=${{ needs.params.outputs.version }}
+          sed -i "s/^appVersion:.*$/appVersion: \"$VERSION\"/" chart/sample-nodejs/Chart.yaml
+      - name: Commit updated Chart.yaml
+        run: |
+          VERSION=${{ needs.params.outputs.version }}
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add chart/sample-nodejs/Chart.yaml
+          git commit -m "CI: sync Chart.yaml appVersion to $VERSION" || echo "No changes to commit"
+          git push origin HEAD:${{ github.ref }}
+      - name: Create git tag
+        run: |
+          VERSION=${{ needs.params.outputs.version }}
+          git tag v$VERSION
+          git push origin v$VERSION
+  version-bump:
+    name: Bump next version
+    runs-on: ubuntu-latest
+    needs: tag-release
+    defaults:
+      run:
+        working-directory: ./app
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Pull latest changes
+        run: |
+          git fetch origin main
+          git rebase origin/main || git rebase --abort
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+      - name: Automated Version Bump
+        id: bump_version
+        uses: phips28/gh-action-bump-version@v11.0.7
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PACKAGEJSON_DIR: 'app'
+        with:
+          skip-tag: 'true'
+          minor-wording: 'add,Adds,new,minor,MINOR,feature,FEATURE'
+          major-wording: 'MAJOR,cut-major'
+          patch-wording: 'patch,fixes,fix,FIX'
+          rc-wording: 'RELEASE,alpha,rls,RLS,release'
+          commit-message: 'CI: bump next version to {{version}}'

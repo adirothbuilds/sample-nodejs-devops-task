@@ -29,7 +29,7 @@ Designed for interview assignments and demos.
 | `resources` | CPU/memory requests and limits |
 | `ingress.*` | Enable ingress, configure hosts, annotations, TLS |
 
-See [`values.yaml`](./values.yaml) for the full list of configurable options.
+See [`values.yaml`](./sample-nodejs/values.yaml) for the full list of configurable options.
 
 ## Common commands
 

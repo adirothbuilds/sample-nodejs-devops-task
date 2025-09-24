@@ -1,0 +1,22 @@
+1. Get the application status by running:
+  kubectl get pods --namespace {{ .Release.Namespace }} -l app.kubernetes.io/instance={{ .Release.Name }}
+
+{{- if .Values.ingress.enabled }}
+2. Browse to the application:
+  {{- range $host := .Values.ingress.hosts }}
+  {{- range $path := $host.paths }}
+  http{{ if $.Values.ingress.tls }}s{{ end }}://{{ $host.host }}{{ $path.path }}
+  {{- end }}
+  {{- end }}
+{{- else if contains "NodePort" (.Values.service.type | default "ClusterIP") }}
+2. Get the NodePort URL:
+  export NODE_PORT=$(kubectl get --namespace {{ .Release.Namespace }} -o jsonpath="{.spec.ports[0].nodePort}" services {{ include "simple-nodejs.fullname" . }})
+  export NODE_IP=$(kubectl get nodes --namespace {{ .Release.Namespace }} -o jsonpath="{.items[0].status.addresses[0].address}")
+  echo http://$NODE_IP:$NODE_PORT
+{{- else if eq (.Values.service.type | default "ClusterIP") "ClusterIP" }}
+2. Run a port forward to access the service locally:
+  kubectl port-forward --namespace {{ .Release.Namespace }} svc/{{ include "simple-nodejs.fullname" . }} 8080:{{ .Values.service.port | default 8080 }}
+  # Then open http://127.0.0.1:8080
+{{- else }}
+2. Access the service using its type {{ .Values.service.type }}
+{{- end }}

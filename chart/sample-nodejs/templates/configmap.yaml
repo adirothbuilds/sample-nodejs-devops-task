@@ -1,0 +1,9 @@
+{{- $config := .Values.config | default (dict) -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "simple-nodejs.fullname" . }}-config
+data:
+  NODE_ENV: {{ $config.nodeEnv | default "production" | quote }}
+  APP_PORT: {{ $config.appPort | default "8080" | quote }}
+  ABOUT_MESSAGE: {{ $config.aboutMessage | default "Welcome to the Simple Node.js App" | quote }}

@@ -1,0 +1,79 @@
+{{- $root := . -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "simple-nodejs.fullname" $root }}
+  labels:
+    {{- include "simple-nodejs.labels" $root | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "simple-nodejs.selectorLabels" $root | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "simple-nodejs.selectorLabels" $root | nindent 8 }}
+      annotations:
+        checksum/config: {{ include (print $root.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- with $root.Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      serviceAccountName: {{ include "simple-nodejs.serviceAccountName" $root }}
+      automountServiceAccountToken: false
+      {{- with $root.Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $root.Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: {{ $root.Chart.Name }}
+          image: "{{ $root.Values.image.repository }}:{{ $root.Values.image.tag | default $root.Chart.AppVersion }}"
+          imagePullPolicy: {{ $root.Values.image.pullPolicy }}
+          ports:
+            - containerPort: {{ $root.Values.service.port | default 8080 }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "simple-nodejs.fullname" $root }}-config
+          {{- with $root.Values.secret.classifiedToken }}
+          {{- if .enabled }}
+          env:
+            - name: CLASSIFIED_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .secretName }}
+                  key: {{ .key }}
+          {{- end }}
+          {{- end }}
+          {{- with $root.Values.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          readinessProbe:
+            httpGet:
+              path: {{ $root.Values.readinessProbe.path | default "/ready" }}
+              port: {{ $root.Values.service.port | default 8080 }}
+            initialDelaySeconds: {{ $root.Values.readinessProbe.initialDelaySeconds | default 5 }}
+            periodSeconds: {{ $root.Values.readinessProbe.periodSeconds | default 10 }}
+          livenessProbe:
+            httpGet:
+              path: {{ $root.Values.livenessProbe.path | default "/live" }}
+              port: {{ $root.Values.service.port | default 8080 }}
+            initialDelaySeconds: {{ $root.Values.livenessProbe.initialDelaySeconds | default 30 }}
+            periodSeconds: {{ $root.Values.livenessProbe.periodSeconds | default 10 }}
+      {{- with $root.Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $root.Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $root.Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

@@ -18,7 +18,7 @@ COPY . .
 RUN chmod -R 555 /app
 
 # Use distroless image for production
-FROM gcr.io/distroless/nodejs22:nonroot
+FROM gcr.io/distroless/nodejs22:nonroot AS production
 
 WORKDIR /app
 
